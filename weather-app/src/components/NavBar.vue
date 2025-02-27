@@ -32,7 +32,7 @@
                 </div>
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0" style="min-width: 150px;">
                     <li class="nav-item">
-                        <a class="nav-link portfolio-link" href="https://alexportfolio.com" target="_blank">Mon Portfolio</a>
+                        <a class="nav-link portfolio-link" href="https://alexportfolio.fr" target="_blank">Mon Portfolio</a>
                     </li>
                 </ul>
             </div>
