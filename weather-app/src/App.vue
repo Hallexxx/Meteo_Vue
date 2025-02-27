@@ -1,188 +1,285 @@
 <template>
-  <div id="app">
-    <header>
-      <h1><a href="#" class="logo">Météo</a></h1>
-    </header>
+    <div id="app">
+        <NavBar @search-city="fetchWeatherByCity" />
 
-    <main>
-      <!-- Recherche de la ville -->
-      <div class="search-bar">
-        <WeatherComponent @weather-updated="updateWeather" />
-      </div>
+        <section class="container my-3">
+            <div class="row justify-content-center mt-5">
+                <div class="col-12 col-md-8 col-lg-8">
+                    <div class="day-buttons d-flex flex-wrap justify-content-center mb-3">
+                        <button
+                            v-for="(day, index) in days"
+                            :key="index"
+                            class="btn btn-custom mx-1"
+                            :class="{ 'active-day': selectedDay === index }"
+                            @click="handleSelectDay(index)"
+                        >
+                            {{ day.label }}
+                        </button>
+                    </div>
 
-      <!-- Carte -->
-      <div class="map-container">
-        <MapComponent @weather-updated="updateWeather" />
-      </div>
+                    <div
+                        v-if="weatherData && forecastData"
+                        class="weather-overlay p-3 bg-white rounded shadow mb-3 mt-3"
+                        @click="toggleDetails"
+                    > 
+                        <div v-if="displayedWeather">
+                            <div class="overlay-header d-flex justify-content-between align-items-center">
+                                <div class="header-left d-flex align-items-center">
+                                    <i
+                                        :class="['bi', selectedDay === 0 ? weatherIconClass : forecastIconClass, 'me-2']"
+                                        style="font-size: 2rem; color: #f39c12;"
+                                    ></i>
+                                    <span class="h4 mb-0">
+                                        {{ weatherData.name }} 
+                                        {{ selectedDay === 0 ? Math.round(weatherData.main.temp) : Math.round(displayedWeather.main.temp) }}°C
+                                    </span>
+                                </div>
+                                <div class="header-right">
+                                    <i class="bi" :class="detailsExpanded ? 'bi-chevron-up' : 'bi-chevron-down'" style="font-size: 2rem;"></i>
+                                </div>
+                            </div>
+                            <transition name="slide-fade">
+                                <div v-if="detailsExpanded" class="overlay-details mt-3">
+                                    <div class="detail-item">
+                                        <p class="mb-0">
+                                            <strong>Température :</strong>
+                                            {{ selectedDay === 0 ? Math.round(weatherData.main.temp) : Math.round(displayedWeather.main.temp) }}°C
+                                        </p>
+                                    </div>
+                                    <hr class="detail-divider" />
+                                    <div class="detail-item">
+                                        <p class="mb-0">
+                                            <strong>Vent :</strong>
+                                            {{ selectedDay === 0 ? weatherData.wind.speed : displayedWeather.wind.speed }} m/s
+                                        </p>
+                                    </div>
+                                    <hr class="detail-divider" />
+                                    <div class="detail-item">
+                                        <p class="mb-0">
+                                            <strong>Conditions :</strong>
+                                            {{ selectedDay === 0 ? weatherData.weather[0].description : displayedWeather.weather[0].description }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </transition>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-      <!-- Affichage des prévisions -->
-      <div v-if="weatherData" id="weather-container-container">
-        <h2>{{ weatherData.name }}</h2>
-        <p>Température: {{ weatherData.main.temp }} °C</p>
-        <p>Pression: {{ weatherData.main.pressure }} hPa</p>
-        <p>Vitesse du vent: {{ weatherData.wind.speed }} m/s</p>
-        <p>Conditions: {{ weatherData.weather[0].description }}</p>
+        <section class="container d-flex justify-content-center mb-5 mt-5">
+            <MapComponent :apiKey="apiKey" @weather-updated="updateWeather" />
+        </section>
 
-        <div class="forecast-bar">
-          <button @click="selectDay(0)" class="forecast-btn" :class="{ active: selectedDay === 0 }">Aujourd'hui</button>
-          <button @click="selectDay(1)" class="forecast-btn" :class="{ active: selectedDay === 1 }">Demain</button>
-          <button @click="selectDay(2)" class="forecast-btn" :class="{ active: selectedDay === 2 }">J+2</button>
-          <button @click="selectDay(3)" class="forecast-btn" :class="{ active: selectedDay === 3 }">J+3</button>
-          <button @click="selectDay(4)" class="forecast-btn" :class="{ active: selectedDay === 4 }">J+4</button>
-        </div>
-
-        <!-- Affichage des prévisions météo -->
-        <div v-if="filteredForecastData.length">
-          <div v-for="(day, index) in filteredForecastData" :key="index">
-            <h3>J+{{ selectedDay }} - {{ new Date(day.dt * 1000).toLocaleDateString() }}</h3>
-            <p>Température max: {{ day.temp.max }} °C</p>
-            <p>Température min: {{ day.temp.min }} °C</p>
-            <p>Conditions: {{ day.weather[0].description }}</p>
-          </div>
-        </div>
-      </div>
-    </main>
-
-    <footer>
-      <p>© 2023 Weather App</p>
-    </footer>
-  </div>
+        <footer class="bg-dark text-white py-3">
+            <div class="container d-flex flex-column justify-content-between align-items-center">
+                <span>© 2025 Weather App</span>
+                <span>Created by Alexandre Perez</span>
+            </div>
+        </footer>
+    </div>
 </template>
 
 <script>
-import WeatherComponent from './components/WeatherComponent.vue';
-import MapComponent from './components/MapComponent.vue';
+import NavBar from "./components/NavBar.vue";
+import MapComponent from "./components/MapComponent.vue";
+import WeatherService from "./services/WeatherService.js";
 
 export default {
-  name: 'App',
-  components: {
-    WeatherComponent,
-    MapComponent
-  },
+  name: "App",
+  components: { NavBar, MapComponent },
   data() {
     return {
-      selectedDay: 0,
+      apiKey: "2a83a40f3f0976b2d76e3838702603d4",
       weatherData: null,
-      forecastData: null
+      forecastData: null,
+      selectedDay: 0,
+      detailsExpanded: false,
+      days: [
+        { label: "Aujourd'hui" },
+        { label: "Demain" },
+        { label: "J+2" },
+        { label: "J+3" },
+        { label: "J+4" }
+      ]
     };
   },
   computed: {
-    filteredForecastData() {
-      if (this.forecastData && this.forecastData.length) {
-        const startDay = this.selectedDay;
-        const endDay = startDay + 1;
-        return this.forecastData.slice(startDay, endDay);
+    displayedWeather() {
+      if (!this.forecastData) return null;
+      return this.selectedDay === 0
+        ? this.weatherData
+        : this.forecastData[this.selectedDay]
+          ? this.forecastData[this.selectedDay].data[0]
+          : null;
+    },
+    weatherIconClass() {
+      if (!this.weatherData) return "bi-cloud";
+      const main = this.weatherData.weather[0].main;
+      switch (main) {
+        case "Clear": return "bi-sun-fill";
+        case "Clouds": return "bi-cloud-fill";
+        case "Rain": return "bi-cloud-rain-fill";
+        case "Drizzle": return "bi-cloud-drizzle-fill";
+        case "Thunderstorm": return "bi-cloud-lightning-fill";
+        case "Snow": return "bi-snow";
+        case "Mist":
+        case "Fog": return "bi-cloud-fog-fill";
+        default: return "bi-cloud";
       }
-      return [];
+    },
+    // Icône pour les prévisions
+    forecastIconClass() {
+      const forecast = this.displayedWeather;
+      if (!forecast) return "bi-cloud";
+      const main = forecast.weather[0].main;
+      switch (main) {
+        case "Clear": return "bi-sun-fill";
+        case "Clouds": return "bi-cloud-fill";
+        case "Rain": return "bi-cloud-rain-fill";
+        case "Drizzle": return "bi-cloud-drizzle-fill";
+        case "Thunderstorm": return "bi-cloud-lightning-fill";
+        case "Snow": return "bi-snow";
+        case "Mist":
+        case "Fog": return "bi-cloud-fog-fill";
+        default: return "bi-cloud";
+      }
     }
   },
   methods: {
-    selectDay(day) {
-      this.selectedDay = day;
+    fetchWeatherByCity(city) {
+      Promise.all([
+        WeatherService.getCurrentWeatherByCity(city, this.apiKey),
+        WeatherService.getForecastByCity(city, this.apiKey)
+      ])
+        .then(([current, forecast]) => {
+          this.weatherData = current;
+          this.forecastData = this.processForecastData(forecast);
+          this.detailsExpanded = false;
+        })
+        .catch(err => console.error("Erreur :", err));
     },
-    updateWeather(weatherData, forecastData) {
-      this.weatherData = weatherData;
-      this.forecastData = forecastData;
+    processForecastData(forecast) {
+      const daily = {};
+      forecast.list.forEach(item => {
+        const date = item.dt_txt.split(" ")[0];
+        if (!daily[date]) daily[date] = [];
+        daily[date].push(item);
+      });
+      return Object.keys(daily)
+        .sort()
+        .map(date => ({ date, data: daily[date] }));
+    },
+    handleSelectDay(index) {
+      this.selectedDay = index;
+      this.detailsExpanded = false;
+    },
+    toggleDetails() {
+      this.detailsExpanded = !this.detailsExpanded;
+    },
+    updateWeather(data) {
+      this.weatherData = data;
+      this.detailsExpanded = false;
     }
+  },
+  mounted() {
+    this.fetchWeatherByCity("Paris");
   }
 };
 </script>
 
 <style>
-* {
-  box-sizing: border-box;
+@import url('https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css');
+@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css');
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-html {
-  background: linear-gradient(to bottom, #45c4ff, #e3f6ff);
-  height: 100%;
-  font-family: Arial, Helvetica, sans-serif;
-  letter-spacing: -0.6px;
-  word-spacing: 0.6px;
-  color: #000000;
-  font-style: normal;
-  font-variant: small-caps;
-  text-transform: lowercase;
+.weather-overlay {
+  max-width: 500px;
+  width: 100%;
+  margin: auto;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+.weather-overlay:hover {
+  transform: scale(1.02);
 }
 
-body {
-  margin: 0;
-  padding: 0;
-}
-
-header {
-  background-color: #333;
-  color: #fff;
-  padding: 5px;
+.overlay-header {
   text-align: left;
 }
 
-.logo {
-  font-size: 24px;
-  color: white;
+.overlay-details {
+  text-align: left;
+  padding: 0 15px;
+}
+.detail-divider {
+  border-top: 1px solid #000;
+  margin: 8px 0;
+}
+
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: all 0.5s ease;
+}
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.btn-custom {
+  display: inline-block;
+  font-weight: bold;
+  text-transform: uppercase;
+  padding: 15px 30px;
+  border: 2px solid #3498db;
+  color: #3498db;
+  border-radius: 8px;
   text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  background-color: transparent;
+  transition: all 0.3s ease;
+  margin: 5px 0;
+  cursor: pointer;
+  font-size: 1.25rem;
 }
 
-.search-bar {
-  transform: translateX(-50%) translateY(-50%);
-  top: 5%;
+.btn-custom::after {
+  content: "";
   position: absolute;
-  left: 50%;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: #3498db;
+  z-index: -1;
+  transition: all 0.3s ease;
 }
 
-main {
-  max-width: 1800px;
-  margin: 20px auto;
-  padding: 20px;
-  border-radius: 5px;
+.btn-custom:hover {
+  color: #fff;
+  transform: scale(1.05);
 }
 
-.forecast-bar {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
+.btn-custom:hover::after {
+  left: 0;
 }
 
-.forecast-bar button {
-  padding: 10px 40px;
-  border-radius: 10px;
-  font-family: 'Pacifico', cursive;
-  font-size: 15px;
-  border: none;
-  color: #ffffff;
-  background-color: #3498DB;
-  border-bottom: 5px solid #2980B9;
-  text-shadow: 0px -2px #2980B9;
-  transition: all 0.1s;
-}
-
-.forecast-bar button.active {
-  transform: translate(0px, 5px);
-  border-bottom: none;
-}
-
-.map-container {
-  transform: translateX(-50%) translateY(0%);
-  margin-top: 0.5%;
-  position: absolute;
-  left: 50%;
-}
-
-#map {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  height: 500px;
-  width: 700px;
-  border-radius: 10px;
+.active-day {
+  color: #fff;
+  background-color: #3498db;
+  border-color: #3498db;
+  transform: scale(1.05);
 }
 
 footer {
-  position: absolute;
-  background-color: #5f5f5f;
-  padding: 10px 10px;
-  text-align: center;
-  font-size: 14px;
-  color: #ffffff;
-  bottom: 0;
-  width: 100%;
+  margin-top: auto;
 }
 </style>

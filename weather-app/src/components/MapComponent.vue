@@ -1,70 +1,106 @@
 <template>
-  <div id="map"></div>
+    <div ref="map" class="map"></div>
 </template>
 
 <script>
-import { defineComponent, onMounted, ref, nextTick } from 'vue';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css'; // Styles de Leaflet
-import axios from 'axios';
+    import { ref, onMounted } from "vue";
+    import L from "leaflet";
+    import "leaflet/dist/leaflet.css";
 
-export default defineComponent({
-  name: 'MapComponent',
-  setup(_, { emit }) {
-    const map = ref(null);
-    const apiKey = '6eb1180161eccb06843669dbee0f87b3'; // Ton API key
+    export default {
+        name: "MapComponent",
+        props: {
+            apiKey: { type: String, required: true }
+        },
+        setup(props, { emit }) {
+            const mapElement = ref(null);
+            let mapInstance = null;
+            let currentMarker = null;
 
-    // Fonction pour récupérer les prévisions météo
-    const getForecast = async (lat, lon) => {
-      try {
-        const response = await axios.get(
-          `https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`
-        );
-        return response.data.daily; // Données des prévisions
-      } catch (error) {
-        console.error('Erreur lors de la récupération des prévisions :', error);
-        return null;
-      }
-    };
+            const getIconClass = (weatherMain) => {
+            switch (weatherMain) {
+                case "Clear": return "bi-sun-fill";
+                case "Clouds": return "bi-cloud-fill";
+                case "Rain": return "bi-cloud-rain-fill";
+                case "Drizzle": return "bi-cloud-drizzle-fill";
+                case "Thunderstorm": return "bi-cloud-lightning-fill";
+                case "Snow": return "bi-snow";
+                case "Mist":
+                case "Fog": return "bi-cloud-fog-fill";
+                default: return "bi-cloud";
+            }
+            };
 
-    onMounted(async () => {
-      await nextTick();
+            onMounted(() => {
+                mapInstance = L.map(mapElement.value).setView([46.8566, 2.3522], 6);
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                    attribution: '&copy; OpenStreetMap'
+                }).addTo(mapInstance);
 
-      // Initialisation de la carte
-      map.value = L.map('map').setView([48.8566, 2.3522], 13); // Centré initialement sur Paris
+                mapInstance.on("click", async (e) => {
+                    const { lat, lng } = e.latlng;
+                    try {
+                    const res = await fetch(
+                        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${props.apiKey}&units=metric`
+                    );
+                    if (!res.ok) throw new Error(`Erreur ${res.status}`);
+                    const data = await res.json();
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map.value);
+                    if (currentMarker) {
+                        mapInstance.removeLayer(currentMarker);
+                    }
 
-      // Clic sur la carte pour obtenir les infos météo
-      map.value.on('click', async (e) => {
-        const lat = e.latlng.lat;
-        const lon = e.latlng.lng;
+                    const iconClass = getIconClass(data.weather[0].main);
+                    const label = `
+                        <div class="custom-marker">
+                        <i class="bi ${iconClass}" style="font-size:2rem; color:#f39c12;"></i>
+                        <span class="temp">${Math.round(data.main.temp)}°C</span>
+                        </div>
+                    `;
 
-        try {
-          const response = await axios.get(
-            `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`
-          );
-          const weatherData = response.data;
+                    const customIcon = L.divIcon({
+                        html: label,
+                        className: "", 
+                        iconSize: [100, 50],
+                        iconAnchor: [50, 25] 
+                    });
 
-          const forecastData = await getForecast(lat, lon);
+                    currentMarker = L.marker([lat, lng], { icon: customIcon }).addTo(mapInstance);
 
-          emit('weather-updated', weatherData, forecastData);
-        } catch (error) {
-          console.error('Erreur lors de la récupération des données météo :', error);
+                    emit("weather-updated", data);
+                    } catch (err) {
+                    console.error("Erreur lors de la récupération de la météo :", err);
+                    }
+                });
+            });
+
+            return { map: mapElement };
         }
-      });
-    });
-
-    return { map };
-  }
-});
+    };
 </script>
 
 <style scoped>
-#map {
-  height: 400px;
-  width: 100%;
-}
+    .map {
+        width: 950px;
+        height: 550px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .custom-marker {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255,255,255,0.9);
+        padding: 5px 10px;
+        border-radius: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .temp {
+        margin-left: 8px;
+        font-weight: bold;
+        color: #333;
+    }
 </style>
